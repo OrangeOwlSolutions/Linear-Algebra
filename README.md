@@ -6,4 +6,5 @@ https://github.com/OrangeOwlSolutions/CUDA_Utilities
 
 and omitted here.
 
-- Null space calculation by the SVD
+- Null space calculation by the SVD;
+- Calculation of the full SVD of a matrix;
