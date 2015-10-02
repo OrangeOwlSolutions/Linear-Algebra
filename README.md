@@ -13,3 +13,4 @@ and omitted here.
 - Use of LU decomposition to invert linear systems (see [Solving linear systems AX = B with CUDA](http://stackoverflow.com/questions/28794010/solve-ax-b-with-cusolver-library-cuda-7/28799502#28799502));
 - Calculation of the determinant of a matrix using Cholesky decomposition and Thrust strided reduction (see [Determinant calculation with CUDA](http://stackoverflow.com/questions/11778981/code-library-to-calculate-determinant-of-a-small-6x6-matrix-solely-on-gpu/29485908#29485908));
 - Solve general sparse linear system using cuSOLVER (see [Solving general sparse linear systems in CUDA](http://stackoverflow.com/questions/31840341/solving-general-sparse-linear-systems-in-cuda/32860481#32860481));
+- Solve tridiagonal linear systems in CUDA using cuSPARSE (see [Solving tridiagonal linear systems in CUDA](http://stackoverflow.com/questions/19541620/cuda-tridiagonal-solver-seems-not-accelerated-by-gpu/32915677#32915677));
