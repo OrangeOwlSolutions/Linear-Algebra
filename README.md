@@ -15,3 +15,4 @@ and omitted here.
 - Solve general sparse linear system using cuSOLVER (see [Solving general sparse linear systems in CUDA](http://stackoverflow.com/questions/31840341/solving-general-sparse-linear-systems-in-cuda/32860481#32860481));
 - Solve tridiagonal linear systems in CUDA using cuSPARSE (see [Solving tridiagonal linear systems in CUDA](http://stackoverflow.com/questions/19541620/cuda-tridiagonal-solver-seems-not-accelerated-by-gpu/32915677#32915677));
 - Solve sparse linear systems by LU factorization (see [Solving sparse linear systems in CUDA using LU factorization](http://stackoverflow.com/questions/17721987/solving-sparse-linear-systems-in-cuda-using-lu-factorization/32916473#32916473));
+- Solve sparse positive definite linear systems by Cholesky factorization (see [Solving sparse definite positive linear systems in CUDA](http://stackoverflow.com/questions/30454089/why-does-cusolver-cusolverspdcsrlsvchol-not-work/32927659#32927659));
