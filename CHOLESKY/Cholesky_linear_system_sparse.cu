@@ -101,8 +101,8 @@ int main()
 	
 	// --- Descriptor for sparse matrix A
 	cusparseMatDescr_t descrA;		cusparseSafeCall(cusparseCreateMatDescr(&descrA));
-	cusparseSetMatType		(descrA, CUSPARSE_MATRIX_TYPE_GENERAL);
-	cusparseSetMatIndexBase	(descrA, CUSPARSE_INDEX_BASE_ONE);  
+	cusparseSafeCall(cusparseSetMatType		(descrA, CUSPARSE_MATRIX_TYPE_GENERAL));
+	cusparseSafeCall(cusparseSetMatIndexBase(descrA, CUSPARSE_INDEX_BASE_ONE));  
 	
 	int nnz = 0;								// --- Number of nonzero elements in dense matrix
 	const int lda = Nrows;						// --- Leading dimension of dense matrix
@@ -147,36 +147,27 @@ int main()
 	double *d_x;		gpuErrchk(cudaMalloc(&d_x, Nrows * sizeof(double)));   
     gpuErrchk(cudaMemcpy(d_x, h_x, Nrows * sizeof(double), cudaMemcpyHostToDevice));
 	
-	// Suppose that A is N x N sparse matrix represented by CSR format, 
-	// Assumption: 
-	// - handle is already created by cusparseCreate(), 
-	// - (d_A_RowIndices, d_A_ColIndices, d_A) is CSR of A on device memory, 
-	// - d_x is right hand side vector on device memory, 
-	// - d_y is solution vector on device memory. 
-	// - d_z is intermediate result on device memory. 
-	
-	
 	/******************************************/
 	/* STEP 1: CREATE DESCRIPTORS FOR L AND U */
 	/******************************************/
 	cusparseMatDescr_t		descr_L = 0; 
-	cusparseCreateMatDescr	(&descr_L); 
-	cusparseSetMatIndexBase	(descr_L, CUSPARSE_INDEX_BASE_ONE); 
-	cusparseSetMatType		(descr_L, CUSPARSE_MATRIX_TYPE_GENERAL); 
-	cusparseSetMatFillMode	(descr_L, CUSPARSE_FILL_MODE_LOWER); 
-	cusparseSetMatDiagType	(descr_L, CUSPARSE_DIAG_TYPE_NON_UNIT); 
+	cusparseSafeCall(cusparseCreateMatDescr	(&descr_L)); 
+	cusparseSafeCall(cusparseSetMatIndexBase	(descr_L, CUSPARSE_INDEX_BASE_ONE)); 
+	cusparseSafeCall(cusparseSetMatType		(descr_L, CUSPARSE_MATRIX_TYPE_GENERAL)); 
+	cusparseSafeCall(cusparseSetMatFillMode	(descr_L, CUSPARSE_FILL_MODE_LOWER)); 
+	cusparseSafeCall(cusparseSetMatDiagType	(descr_L, CUSPARSE_DIAG_TYPE_NON_UNIT)); 
 	
 	/********************************************************************************************************/
 	/* STEP 2: QUERY HOW MUCH MEMORY USED IN CHOLESKY FACTORIZATION AND THE TWO FOLLOWING SYSTEM INVERSIONS */
 	/********************************************************************************************************/
-	csric02Info_t info_A  = 0;	cusparseCreateCsric02Info(&info_A); 
-	csrsv2Info_t  info_L  = 0;	cusparseCreateCsrsv2Info(&info_L); 
-	csrsv2Info_t  info_Lt = 0;	cusparseCreateCsrsv2Info(&info_Lt); 
+	csric02Info_t info_A  = 0;	cusparseSafeCall(cusparseCreateCsric02Info(&info_A)); 
+	csrsv2Info_t  info_L  = 0;	cusparseSafeCall(cusparseCreateCsrsv2Info (&info_L)); 
+	csrsv2Info_t  info_Lt = 0;	cusparseSafeCall(cusparseCreateCsrsv2Info (&info_Lt)); 
 	
 	int pBufferSize_M, pBufferSize_L, pBufferSize_Lt;
-	cusparseDcsric02_bufferSize(handle, N, nnz, descrA, d_A, d_A_RowIndices, d_A_ColIndices, info_A, &pBufferSize_M); 
-	cusparseDcsrsv2_bufferSize (handle, CUSPARSE_OPERATION_NON_TRANSPOSE, N, nnz, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_L,  &pBufferSize_L); 
-	cusparseDcsrsv2_bufferSize (handle, CUSPARSE_OPERATION_TRANSPOSE,     N, nnz, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_Lt, &pBufferSize_Lt); 
+	cusparseSafeCall(cusparseDcsric02_bufferSize(handle, N, nnz, descrA, d_A, d_A_RowIndices, d_A_ColIndices, info_A, &pBufferSize_M)); 
+	cusparseSafeCall(cusparseDcsrsv2_bufferSize (handle, CUSPARSE_OPERATION_NON_TRANSPOSE, N, nnz, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_L,  &pBufferSize_L)); 
+	cusparseSafeCall(cusparseDcsrsv2_bufferSize (handle, CUSPARSE_OPERATION_TRANSPOSE,     N, nnz, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_Lt, &pBufferSize_Lt)); 
 	
 	int pBufferSize = max(pBufferSize_M, max(pBufferSize_L, pBufferSize_Lt)); 
 	void *pBuffer = 0;	gpuErrchk(cudaMalloc((void**)&pBuffer, pBufferSize)); 
@@ -186,20 +177,20 @@ int main()
 	/******************************************************************************************************/
 	int structural_zero; 
 
-	cusparseDcsric02_analysis(handle, N, nnz, descrA, d_A, d_A_RowIndices, d_A_ColIndices, info_A, CUSPARSE_SOLVE_POLICY_NO_LEVEL, pBuffer); 
+	cusparseSafeCall(cusparseDcsric02_analysis(handle, N, nnz, descrA, d_A, d_A_RowIndices, d_A_ColIndices, info_A, CUSPARSE_SOLVE_POLICY_NO_LEVEL, pBuffer)); 
 	
 	cusparseStatus_t status = cusparseXcsric02_zeroPivot(handle, info_A, &structural_zero); 
 	if (CUSPARSE_STATUS_ZERO_PIVOT == status){ printf("A(%d,%d) is missing\n", structural_zero, structural_zero); } 
 
-	cusparseDcsrsv2_analysis(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, N, nnz, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_L,  CUSPARSE_SOLVE_POLICY_NO_LEVEL,  pBuffer); 
-	cusparseDcsrsv2_analysis(handle, CUSPARSE_OPERATION_TRANSPOSE,     N, nnz, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_Lt, CUSPARSE_SOLVE_POLICY_USE_LEVEL, pBuffer); 
+	cusparseSafeCall(cusparseDcsrsv2_analysis(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, N, nnz, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_L,  CUSPARSE_SOLVE_POLICY_NO_LEVEL,  pBuffer)); 
+	cusparseSafeCall(cusparseDcsrsv2_analysis(handle, CUSPARSE_OPERATION_TRANSPOSE,     N, nnz, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_Lt, CUSPARSE_SOLVE_POLICY_USE_LEVEL, pBuffer)); 
 	
 	/*************************************/
 	/* STEP 4: FACTORIZATION: A = L * L' */
 	/*************************************/
 	int numerical_zero; 
 
-	cusparseDcsric02(handle, N, nnz, descrA, d_A, d_A_RowIndices, d_A_ColIndices, info_A, CUSPARSE_SOLVE_POLICY_NO_LEVEL, pBuffer); 
+	cusparseSafeCall(cusparseDcsric02(handle, N, nnz, descrA, d_A, d_A_RowIndices, d_A_ColIndices, info_A, CUSPARSE_SOLVE_POLICY_NO_LEVEL, pBuffer)); 
 	status = cusparseXcsric02_zeroPivot(handle, info_A, &numerical_zero); 
 	if (CUSPARSE_STATUS_ZERO_PIVOT == status){ printf("L(%d,%d) is zero\n", numerical_zero, numerical_zero); } 
 	
@@ -224,7 +215,7 @@ int main()
 	double *d_z;		gpuErrchk(cudaMalloc(&d_z, N * sizeof(double))); 
 	   
 	const double alpha = 1.; 
-	cusparseDcsrsv2_solve(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, N, nnz, &alpha, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_L, d_x, d_z, CUSPARSE_SOLVE_POLICY_NO_LEVEL, pBuffer); 
+	cusparseSafeCall(cusparseDcsrsv2_solve(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, N, nnz, &alpha, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_L, d_x, d_z, CUSPARSE_SOLVE_POLICY_NO_LEVEL, pBuffer)); 
 	
 	/**********************/
 	/* STEP 5: L' * y = z */
@@ -233,7 +224,7 @@ int main()
 	double *h_y	= (double *)malloc(Ncols * sizeof(double)); 
 	double *d_y;		gpuErrchk(cudaMalloc(&d_y, Ncols * sizeof(double))); 
 
-	cusparseDcsrsv2_solve(handle, CUSPARSE_OPERATION_TRANSPOSE, N, nnz, &alpha, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_Lt, d_z, d_y, CUSPARSE_SOLVE_POLICY_USE_LEVEL, pBuffer); 
+	cusparseSafeCall(cusparseDcsrsv2_solve(handle, CUSPARSE_OPERATION_TRANSPOSE, N, nnz, &alpha, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_Lt, d_z, d_y, CUSPARSE_SOLVE_POLICY_USE_LEVEL, pBuffer)); 
 
 	cudaMemcpy(h_x, d_y, N * sizeof(double), cudaMemcpyDeviceToHost);
 	printf("\n\nFinal result\n");
