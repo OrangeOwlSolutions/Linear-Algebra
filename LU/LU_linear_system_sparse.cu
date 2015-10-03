@@ -6,6 +6,74 @@
 #include <cuda_runtime.h>
 #include <cusparse_v2.h>
 
+/********************/
+/* CUDA ERROR CHECK */
+/********************/
+// --- Credit to http://stackoverflow.com/questions/14038589/what-is-the-canonical-way-to-check-for-errors-using-the-cuda-runtime-api
+void gpuAssert(cudaError_t code, char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess)
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+	  if (abort) { exit(code); }
+   }
+}
+
+extern "C" void gpuErrchk(cudaError_t ans) { gpuAssert((ans), __FILE__, __LINE__); }
+
+/***************************/
+/* CUSPARSE ERROR CHECKING */
+/***************************/
+static const char *_cusparseGetErrorEnum(cusparseStatus_t error)
+{
+    switch (error)
+    {
+
+		case CUSPARSE_STATUS_SUCCESS:
+            return "CUSPARSE_STATUS_SUCCESS";
+
+        case CUSPARSE_STATUS_NOT_INITIALIZED:
+            return "CUSPARSE_STATUS_NOT_INITIALIZED";
+
+        case CUSPARSE_STATUS_ALLOC_FAILED:
+            return "CUSPARSE_STATUS_ALLOC_FAILED";
+
+        case CUSPARSE_STATUS_INVALID_VALUE:
+            return "CUSPARSE_STATUS_INVALID_VALUE";
+
+        case CUSPARSE_STATUS_ARCH_MISMATCH:
+            return "CUSPARSE_STATUS_ARCH_MISMATCH";
+
+        case CUSPARSE_STATUS_MAPPING_ERROR:
+            return "CUSPARSE_STATUS_MAPPING_ERROR";
+
+        case CUSPARSE_STATUS_EXECUTION_FAILED:
+            return "CUSPARSE_STATUS_EXECUTION_FAILED";
+
+        case CUSPARSE_STATUS_INTERNAL_ERROR:
+            return "CUSPARSE_STATUS_INTERNAL_ERROR";
+
+        case CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED:
+            return "CUSPARSE_STATUS_MATRIX_TYPE_NOT_SUPPORTED";
+
+        case CUSPARSE_STATUS_ZERO_PIVOT:
+            return "CUSPARSE_STATUS_ZERO_PIVOT";
+	}
+
+    return "<unknown>";
+}
+
+inline void __cusparseSafeCall(cusparseStatus_t err, const char *file, const int line)
+{
+    if(CUSPARSE_STATUS_SUCCESS != err) {
+		fprintf(stderr, "CUSPARSE error in file '%s', line %Ndims\Nobjs %s\nerror %Ndims: %s\nterminating!\Nobjs",__FILE__, __LINE__,err, \
+                                _cusparseGetErrorEnum(err)); \
+		cudaDeviceReset(); assert(0); \
+	}
+}
+
+extern "C" void cusparseSafeCall(cusparseStatus_t err) { __cusparseSafeCall(err, __FILE__, __LINE__); }
+
 /********/
 /* MAIN */
 /********/
@@ -82,14 +150,9 @@ int main()
 	double *d_x;		gpuErrchk(cudaMalloc(&d_x, Nrows * sizeof(double)));   
     gpuErrchk(cudaMemcpy(d_x, h_x, Nrows * sizeof(double), cudaMemcpyHostToDevice));
 	
-	/*********************************************/
-	/* STEP 1: CREATE DESCRIPTORS FOR A, L AND U */
-	/*********************************************/
-	cusparseMatDescr_t		descr_M = 0; 
-	cusparseCreateMatDescr	(&descr_M); 
-	cusparseSetMatIndexBase	(descr_M, CUSPARSE_INDEX_BASE_ONE); 
-	cusparseSetMatType		(descr_M, CUSPARSE_MATRIX_TYPE_GENERAL); 
-	
+	/******************************************/
+	/* STEP 1: CREATE DESCRIPTORS FOR L AND U */
+	/******************************************/
 	cusparseMatDescr_t		descr_L = 0; 
 	cusparseCreateMatDescr	(&descr_L); 
 	cusparseSetMatIndexBase	(descr_L, CUSPARSE_INDEX_BASE_ONE); 
@@ -107,12 +170,12 @@ int main()
 	/**************************************************************************************************/
 	/* STEP 2: QUERY HOW MUCH MEMORY USED IN LU FACTORIZATION AND THE TWO FOLLOWING SYSTEM INVERSIONS */
 	/**************************************************************************************************/
-	csrilu02Info_t info_M = 0; cusparseCreateCsrilu02Info	(&info_M); 
+	csrilu02Info_t info_A = 0; cusparseCreateCsrilu02Info	(&info_A); 
 	csrsv2Info_t info_L = 0;   cusparseCreateCsrsv2Info	(&info_L); 
 	csrsv2Info_t info_U = 0;   cusparseCreateCsrsv2Info	(&info_U); 
 	
 	int pBufferSize_M, pBufferSize_L, pBufferSize_U; 
-	cusparseDcsrilu02_bufferSize(handle, N, nnz, descr_M, d_A, d_A_RowIndices, d_A_ColIndices, info_M, &pBufferSize_M); 
+	cusparseDcsrilu02_bufferSize(handle, N, nnz, descrA, d_A, d_A_RowIndices, d_A_ColIndices, info_A, &pBufferSize_M); 
 	cusparseDcsrsv2_bufferSize	(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, N, nnz, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_L, &pBufferSize_L); 
 	cusparseDcsrsv2_bufferSize	(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, N, nnz, descr_U, d_A, d_A_RowIndices, d_A_ColIndices, info_U, &pBufferSize_U); 
 	
@@ -124,20 +187,20 @@ int main()
 	/************************************************************************************************/
 	int structural_zero; 
 
-	cusparseDcsrilu02_analysis(handle, N, nnz, descr_M, d_A, d_A_RowIndices, d_A_ColIndices, info_M, CUSPARSE_SOLVE_POLICY_NO_LEVEL, pBuffer); 
-	cusparseStatus_t status = cusparseXcsrilu02_zeroPivot(handle, info_M, &structural_zero); 
+	cusparseDcsrilu02_analysis(handle, N, nnz, descrA, d_A, d_A_RowIndices, d_A_ColIndices, info_A, CUSPARSE_SOLVE_POLICY_NO_LEVEL, pBuffer); 
+	cusparseStatus_t status = cusparseXcsrilu02_zeroPivot(handle, info_A, &structural_zero); 
 	if (CUSPARSE_STATUS_ZERO_PIVOT == status){ printf("A(%d,%d) is missing\n", structural_zero, structural_zero); } 
 	
 	cusparseDcsrsv2_analysis(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, N, nnz, descr_L, d_A, d_A_RowIndices, d_A_ColIndices, info_L, CUSPARSE_SOLVE_POLICY_NO_LEVEL, pBuffer); 
 	cusparseDcsrsv2_analysis(handle, CUSPARSE_OPERATION_NON_TRANSPOSE, N, nnz, descr_U, d_A, d_A_RowIndices, d_A_ColIndices, info_U, CUSPARSE_SOLVE_POLICY_USE_LEVEL, pBuffer); 
 	
-	/*********************/
-	/* STEP 4: M = L * U */
-	/*********************/
+	/************************************/
+	/* STEP 4: FACTORIZATION: A = L * U */
+	/************************************/
 	int numerical_zero; 
 
-	cusparseDcsrilu02(handle, N, nnz, descr_M, d_A, d_A_RowIndices, d_A_ColIndices, info_M, CUSPARSE_SOLVE_POLICY_NO_LEVEL, pBuffer); 
-	status = cusparseXcsrilu02_zeroPivot(handle, info_M, &numerical_zero); 
+	cusparseDcsrilu02(handle, N, nnz, descrA, d_A, d_A_RowIndices, d_A_ColIndices, info_A, CUSPARSE_SOLVE_POLICY_NO_LEVEL, pBuffer); 
+	status = cusparseXcsrilu02_zeroPivot(handle, info_A, &numerical_zero); 
 	if (CUSPARSE_STATUS_ZERO_PIVOT == status){ printf("U(%d,%d) is zero\n", numerical_zero, numerical_zero); } 
 	
 	/*********************/
