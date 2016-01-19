@@ -16,4 +16,4 @@ and omitted here.
 - Solve tridiagonal linear systems in CUDA using cuSPARSE (see [Solving tridiagonal linear systems in CUDA](http://www.orangeowlsolutions.com/archives/1701));
 - Solve sparse linear systems by LU factorization (see [Solving sparse linear systems in CUDA using LU factorization](http://www.orangeowlsolutions.com/archives/1696));
 - Solve sparse linear systems by LU factorization and graph coloring (see [Improving the solution of sparse linear systems](http://stackoverflow.com/questions/18027278/why-is-cuda-slower-than-umfpack-in-solving-the-linear-system-ax-b/33483695#33483695));
-- Solve sparse positive definite linear systems by Cholesky factorization (see [Solving sparse definite positive linear systems in CUDA](http://stackoverflow.com/questions/30454089/why-does-cusolver-cusolverspdcsrlsvchol-not-work/32927659#32927659));
+- Solve sparse positive definite linear systems by Cholesky factorization (see [Solving sparse definite positive linear systems in CUDA](http://www.orangeowlsolutions.com/archives/1704));
